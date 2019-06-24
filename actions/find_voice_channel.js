@@ -131,19 +131,19 @@ action: function(cache) {
 	let result;
 	switch(info) {
 		case 0:
-			result = channels.find(element => element.id === find);
+			result = channels.find('id', find);
 			break;
 		case 1:
-			result = channels.find(element => element.name === find);
+			result = channels.find('name', find);
 			break;
 		case 2:
-			result = channels.find(element => element.position === find);
+			result = channels.find('position', find);
 			break;
 		case 3:
-			result = channels.find(element => element.userLimit === find);
+			result = channels.find('userLimit', find);
 			break;
 		case 4:
-			result = channels.find(element => element.bitrate === find);
+			result = channels.find('bitrate', find);
 			break;
 		default:
 			break;

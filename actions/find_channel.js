@@ -129,13 +129,13 @@ action: function(cache) {
 	let result;
 	switch(info) {
 		case 0:
-			result = channels.find(element => element.id === find);
+			result = channels.find('id', find);
 			break;
 		case 1:
-			result = channels.find(element => element.name === find);
+			result = channels.find('name', find);
 			break;
 		case 2:
-			result = channels.find(element => element.topic === find);
+			result = channels.find('topic', find);
 			break;
 		default:
 			break;
