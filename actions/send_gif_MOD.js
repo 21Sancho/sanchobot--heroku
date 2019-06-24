@@ -6,7 +6,7 @@ module.exports = {
 // This is the name of the action displayed in the editor.
 //---------------------------------------------------------------------
 
-name: "Send Image MOD",
+name: "Send GIF",
 
 //---------------------------------------------------------------------
 // Action Section
@@ -24,42 +24,29 @@ section: "Image Editing",
 
 subtitle: function(data) {
 	const channels = ['Same Channel', 'Command Author', 'Mentioned User', 'Mentioned Channel', 'Default Channel (Top Channel)', 'Temp Variable', 'Server Variable', 'Global Variable'];
-	return `${channels[parseInt(data.channel)]}`;
+	return `${channels[parseInt(data.channel)]} ${data.channel < 5 ? "" : `- ${data.varName2}`}`;
 },
 
 //---------------------------------------------------------------------
-// Action Storage Function << added
-//
-// Stores the relevant variable info for the editor.
-//---------------------------------------------------------------------
+	 // DBM Mods Manager Variables (Optional but nice to have!)
+	 //
+	 // These are variables that DBM Mods Manager uses to show information
+	 // about the mods for people to see in the list.
+	 //---------------------------------------------------------------------
 
-variableStorage: function(data, varType) {
-	const type = parseInt(data.storage2);
-	if(type !== varType) return;
-	return ([data.varName3, 'Message']);
-},
+	 // Who made the mod (If not set, defaults to "DBM Mods")
+	 author: "MrGold",
 
+	 // The version of the mod (Defaults to 1.0.0)
+	 version: "1.9.4", //Added in 1.9.4
 
-//---------------------------------------------------------------------
-	// DBM Mods Manager Variables (Optional but nice to have!)
-	//
-	// These are variables that DBM Mods Manager uses to show information
-	// about the mods for people to see in the list.
-	//---------------------------------------------------------------------
-		
-	// Who made the mod (If not set, defaults to "DBM Mods")
-	author: "EGGSY & Tindus",
-		
-	// The version of the mod (Defaults to 1.0.0)
-	version: "1.9.5",
-		
-	// A short description to show on the mod line for this mod (Must be on a single line)
-	short_description: "You can rename DBM image names and image formats, and Store!",
-	
-// If it depends on any other mods by name, ex: WrexMODS if the mod uses something from WrexMods
-	
-	
-//---------------------------------------------------------------------
+	 // A short description to show on the mod line for this mod (Must be on a single line)
+	 short_description: "Sends a GIF",
+
+	 // If it depends on any other mods by name, ex: WrexMODS if the mod uses something from WrexMods
+     
+
+	 //---------------------------------------------------------------------
 
 //---------------------------------------------------------------------
 // Action Fields
@@ -69,7 +56,7 @@ variableStorage: function(data, varType) {
 // are also the names of the fields stored in the action's JSON data.
 //---------------------------------------------------------------------
 
-fields: ["storage", "varName", "channel", "varName2", "message", "imageName", "imageFormat", "storage2", "varName3"],
+fields: ["storage", "varName", "channel", "varName2", "message"],
 
 //---------------------------------------------------------------------
 // Command HTML
@@ -89,9 +76,16 @@ fields: ["storage", "varName", "channel", "varName2", "message", "imageName", "i
 
 html: function(isEvent, data) {
 	return `
+<div id ="wrexdiv" style="width: 550px; height: 350px; overflow-y: scroll;">
+<div>
+    <p>
+        <u>Mod Info:</u><br>
+	    Created by MrGold
+    </p>
+</div><br>
 <div>
 	<div style="float: left; width: 35%;">
-		Source Image:<br>
+		Source GIF:<br>
 		<select id="storage" class="round" onchange="glob.refreshVariableList(this)">
 			${data.variables[1]}
 		</select>
@@ -114,35 +108,9 @@ html: function(isEvent, data) {
 	</div>
 </div><br><br><br>
 <div style="padding-top: 8px;">
-	Message: 
-	<textarea id="message" rows="3" placeholder="Insert message here..." style="width: 99%; font-family: monospace; white-space: nowrap; resize: none;"></textarea>
-</div><br>
-	<div id="imageFormatField" style="float: left; width: 35%;">
-		Image Format:<br>
-		<select id="imageFormat" class="round">
-			<option value=".jpg">JPG</option>
-			<option value=".png">PNG</option>
-		</select>
-	</div>
-	<div id="imageNameField" style="float: right; width: 60%;">
-		Image Name:<br>
-		<input id="imageName" class="round" type="text">
-	</div><br><br><br>
-	
-	
-<div>
-	<div style="float: left; width: 35%;">
-		Store In:<br>
-		<select id="storage2" class="round" onchange="glob.variableChange(this, 'varNameContainer3')">
-			${data.variables[0]}
-		</select>
-	</div>
-	<div id="varNameContainer3" style="display: none; float: right; width: 60%;">
-		Variable Name:<br>
-		<input id="varName3" class="round" type="text">
-	</div>
-</div>
-	`
+	Message:<br>
+	<textarea id="message" rows="8" placeholder="Insert message here... (optional)" style="width: 508px; font-family: monospace; white-space: nowrap; resize: none;"></textarea>
+</div><br><br>`
 },
 
 //---------------------------------------------------------------------
@@ -156,7 +124,7 @@ html: function(isEvent, data) {
 init: function() {
 	const {glob, document} = this;
 
-	glob.refreshVariableList(document.getElementById('storage'));
+    glob.refreshVariableList(document.getElementById('storage'));
 	glob.sendTargetChange(document.getElementById('channel'), 'varNameContainer2');
 },
 
@@ -170,52 +138,30 @@ init: function() {
 
 action: function(cache) {
 	const data = cache.actions[cache.index];
-	const server = cache.server;
-	const msg = cache.msg;
 	const storage = parseInt(data.storage);
 	const varName = this.evalMessage(data.varName, cache);
 	const image = this.getVariable(storage, varName, cache);
+
 	if(!image) {
 		this.callNextAction(cache);
 		return;
 	}
+
 	const channel = parseInt(data.channel);
 	const varName2 = this.evalMessage(data.varName2, cache);
 	const target = this.getSendTarget(channel, varName2, cache);
-	const fileName = this.evalMessage(data.imageName, cache);
+
 	if(Array.isArray(target)) {
-		const Images = this.getDBM().Images;
-		Images.createBuffer(image).then(function(buffer) {
-			this.callListFunc(target, 'send', [this.evalMessage(data.message, cache), {
-				files: [
-					{
-						attachment: buffer,
-						name: `${fileName}${data.imageFormat}`
-					}
-				]
-			}]).then(function(resultMsg) {
-			const varName3 = this.evalMessage(data.varName3, cache);
-			const storage2 = parseInt(data.storage2);
-			this.storeValue(resultMsg, storage2, varName3, cache);
-				this.callNextAction(cache);
-			}.bind(this));
+		this.callListFunc(target, 'send', [this.evalMessage(data.message, cache), {
+			files: [image]
+		}]).then(function() {
+			this.callNextAction(cache);
 		}.bind(this)).catch(this.displayError.bind(this, data, cache));
 	} else if(target && target.send) {
-		const Images = this.getDBM().Images;
-		Images.createBuffer(image).then(function(buffer) {
-			const varName3 = this.evalMessage(data.varName3, cache);
-			const storage2 = parseInt(data.storage2);
-			target.send(this.evalMessage(data.message, cache), {
-				files: [
-					{
-						attachment: buffer,
-						name: `${fileName}${data.imageFormat}`
-					}
-				]
-			}).then(function(resultMsg) {
-				this.storeValue(resultMsg, storage2, varName3, cache);
-				this.callNextAction(cache);
-			}.bind(this)).catch(this.displayError.bind(this, data, cache));
+		target.send(this.evalMessage(data.message, cache), {
+			files: [image]
+		}).then(function() {
+			this.callNextAction(cache);
 		}.bind(this)).catch(this.displayError.bind(this, data, cache));
 	} else {
 		this.callNextAction(cache);

@@ -6,7 +6,7 @@ module.exports = {
 	// This is the name of the action displayed in the editor.
 	//---------------------------------------------------------------------
 
-	name: "RSS Feed Watcher",
+	name: "Play YouTube Playlist",
 
 	//---------------------------------------------------------------------
 	// Action Section
@@ -14,7 +14,15 @@ module.exports = {
 	// This is the section the action will fall into.
 	//---------------------------------------------------------------------
 
-	section: "Other Stuff",
+	section: "Audio Control",
+
+	//---------------------------------------------------------------------
+	// Requires Audio Libraries
+	//
+	// If 'true', this action requires audio libraries to run.
+	//---------------------------------------------------------------------
+
+	requiresAudioLibraries: true,
 
 	//---------------------------------------------------------------------
 	// Action Subtitle
@@ -22,7 +30,7 @@ module.exports = {
 	// This function generates the subtitle displayed next to the name.
 	//---------------------------------------------------------------------
 
-	subtitle: function (data) {
+	subtitle: function(data) {
 		return `${data.url}`;
 	},
 
@@ -34,26 +42,18 @@ module.exports = {
 	//---------------------------------------------------------------------
 
 	// Who made the mod (If not set, defaults to "DBM Mods")
-	author: "Two",
+	author: "ZockerNico",
 
 	// The version of the mod (Defaults to 1.0.0)
-	version: "1.9.3",
+	version: "1.9.5", //Added in 1.9.5
 
 	// A short description to show on the mod line for this mod (Must be on a single line)
-	short_description: "This mod allows you to watch rss feeds for updates & store the update in a variable.",
+	short_description: "This action will add every video from a youtube playlist to the queue.",
 
-
-	//---------------------------------------------------------------------
-	// Action Storage Function
-	//
-	// Stores the relevant variable info for the editor.
-	//---------------------------------------------------------------------
-
-	variableStorage: function (data, varType) {
-		const type = parseInt(data.storage);
-		if (type !== varType) return;
-		return ([data.varName, 'RSS Feed']);
-	},
+	// If it depends on any other mods by name, ex: WrexMODS if the mod uses something from WrexMods
+	depends_on_mods: [
+		{name:'WrexMods',path:'aaa_wrexmods_dependencies_MOD.js'}
+	],
 
 	//---------------------------------------------------------------------
 	// Action Fields
@@ -63,7 +63,7 @@ module.exports = {
 	// are also the names of the fields stored in the action's JSON data.
 	//---------------------------------------------------------------------
 
-	fields: ["path", "url", "storage", "varName"],
+	fields: ["url", "apikey", "seek", "volume", "passes", "bitrate"],
 
 	//---------------------------------------------------------------------
 	// Command HTML
@@ -81,33 +81,33 @@ module.exports = {
 	//                messages, servers, variables
 	//---------------------------------------------------------------------
 
-	html: function (isEvent, data) {
+	html: function(isEvent, data) {
 		return `
-	<div style="padding-top: 8px;">
-	<div style="float:left"><u>Note:</u><b>This action will not stop watching the feed until bot restarts or using Stop RSS Feed Watcher action!</b></div><br>
-<br>
-<div style="float:left"><b>The next actions will be called on feed update!</b></div><br>
-
-<div>
-	Local/Web URL:<br>
-	<input id="url" class="round" type="text" placeholder="eg. https://github.com/dbm-mods.atom"><br>
-</div>
-<div>
-	Json Path:<br>
-	<input id="path" class="round" type="text" placeholder="Leave Blank if not needed."><br>
-</div>
-<div>
-	<div style="float: left; width: 35%;">
-		Store In:<br>
-		<select id="storage" class="round">
-			${data.variables[1]}
-		</select>
+	<div>
+	<p>
+		Made by ZockerNico.
+	</p>
+	</div><br>
+	<div style="float: left; width: 105%;">
+		YouTube Playlist URL:<br>
+		<input id="url" class="round" type="text" value="https://www.youtube.com/playlist?list=PLkfg3Bt9RE055BeP8DeDZSUCYxeSLnobe"><br>
 	</div>
-	<div id="varNameContainer" style="float: right; width: 60%;">
-		Variable Name:<br>
-		<input id="varName" class="round" type="text"><br>
+	<div style="float: left; width: 105%;">
+		API Key:<br>
+		<input id="apikey" class="round" type="text" placeholder="Insert your YouTube Data V3 API Key..."><br>
 	</div>
-</div>`
+	<div style="float: left; width: 49%;">
+		Video Seek Positions:<br>
+		<input id="seek" class="round" type="text" value="0"><br>
+		Video Volumes:<br>
+		<input id="volume" class="round" type="text" placeholder="Leave blank for automatic..."><br>
+	</div>
+	<div style="float: right; width: 49%;">
+		Video Passes:<br>
+		<input id="passes" class="round" type="text" value="1"><br>
+		Video Bitrates:<br>
+		<input id="bitrate" class="round" type="text" placeholder="Leave blank for automatic..."><br>
+	</div>`
 	},
 
 	//---------------------------------------------------------------------
@@ -118,7 +118,8 @@ module.exports = {
 	// functions for the DOM elements.
 	//---------------------------------------------------------------------
 
-	init: function () {},
+	init: function() {
+	},
 
 	//---------------------------------------------------------------------
 	// Action Bot Function
@@ -128,59 +129,58 @@ module.exports = {
 	// so be sure to provide checks for variable existance.
 	//---------------------------------------------------------------------
 
-	action: function (cache) {
+	action: function(cache) {
 		const data = cache.actions[cache.index];
-		const url = this.evalMessage(data.url, cache);
-		const varName = this.evalMessage(data.varName, cache);
-		const storage = parseInt(data.storage);
-		const path = parseInt(data.path);
-		var _this = this
-		var stor = storage + varName
-		console.log(stor)
+		const Audio = this.getDBM().Audio;
 		const WrexMODS = this.getWrexMods();
-		const {
-			JSONPath
-		} = WrexMODS.require('jsonpath-plus');
-		var Watcher = WrexMODS.require('feed-watcher'),
-			feed = url,
-			interval = 10 // seconds
+		const ytapi = WrexMODS.require('simple-youtube-api');
+		const apikey = this.evalMessage(data.apikey, cache);
+		const playlist = this.evalMessage(data.url, cache);
+		const options = {};
 
-		// if not interval is passed, 60s would be set as default interval.
-		var watcher = new Watcher(feed, interval)
-		this.storeValue(watcher, storage, stor, cache);
-	
-		// Check for new entries every n seconds.
-		watcher.on('new entries', function (entries) {
-			entries.forEach(function (entry) {
+		//Check Input
+		if(playlist === undefined || playlist === "") {
+			return console.log('Please insert a playlist url!');
+		};
+		if(apikey === undefined || playlist === "") {
+			return console.log('Please insert an valid api key!');
+		};
 
-                if(path){
-					var res = JSONPath({
-						path: path,
-						json: entry
-					});
-					_this.storeValue(res, storage, varName, cache);
-				} else if (!path){
-					_this.storeValue(entry, storage, varName, cache);
-				}
-
-				
-				
-                _this.callNextAction(cache);
-			})
-		})
-
-		// Start watching the feed.
-		watcher
-			.start()
-			.then(function (entries) {
-				console.log('Starting watching...')
-			})
-			.catch(function (error) {
-				console.error(error)
-			})
-
+		//Check Options
+		if(data.seek) {
+			options.seek = parseInt(this.evalMessage(data.seek, cache));
+		};
+		if(data.volume) {
+			options.volume = parseInt(this.evalMessage(data.volume, cache)) / 100;
+		} else if(cache.server) {
+			options.volume = Audio.volumes[cache.server.id] || 0.5;
+		} else {
+			options.volume = 0.5;
+		};
+		if(data.passes) {
+			options.passes = parseInt(this.evalMessage(data.passes, cache));
+		};
+		if(data.bitrate) {
+			options.bitrate = parseInt(this.evalMessage(data.bitrate, cache));
+		} else {
+			options.bitrate = 'auto';
+		};
 		
+		//Load playlist
+		const YouTube = new ytapi(`${apikey}`);
 
+		YouTube.getPlaylist(`${playlist}`).then(playlist => {
+			playlist.getVideos().then(videos => {
+				videos.forEach(video => {
+					const info = ['yt', options, `https://www.youtube.com/watch?v=${video.id}`];
+					if(video.id !== undefined) {
+						Audio.addToQueue(info, cache);
+					};
+				})
+			});
+		});
+		
+		this.callNextAction(cache);
 	},
 
 	//---------------------------------------------------------------------
@@ -192,6 +192,7 @@ module.exports = {
 	// functions you wish to overwrite.
 	//---------------------------------------------------------------------
 
-	mod: function (DBM) {}
+	mod: function(DBM) {
+	}
 
-}; // End of module
+};// End of module
